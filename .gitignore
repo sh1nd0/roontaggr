@@ -10,6 +10,8 @@ venv/
 build/
 dist/
 RoonTag.spec
+FlyMeToTheRoon.spec
+RoonTag.icns
 *.app/
 
 # tkdnd build output (regenerated on each machine by build_tkdnd.sh)

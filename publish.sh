@@ -1,11 +1,11 @@
 #!/bin/bash
-# Publish a new RoonTag release to GitHub.
+# Publish a new Fly Me To The Roon release to GitHub.
 #
 # What it does:
 #   1. Reads VERSION.
 #   2. Bails out if a tag for that version already exists.
-#   3. Runs build_app.sh to produce dist/RoonTag.app.
-#   4. Zips the .app to dist/RoonTag.app.zip.
+#   3. Runs build_app.sh to produce dist/Fly Me To The Roon.app.
+#   4. Zips the .app to dist/Fly Me To The Roon.app.zip.
 #   5. Extracts the matching section from CHANGELOG.md.
 #   6. Creates a git tag vX.Y.Z and a GitHub Release with the zip attached.
 #
@@ -43,7 +43,7 @@ if gh release view "$TAG" >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "==> Publishing RoonTag $TAG"
+echo "==> Publishing Fly Me To The Roon $TAG"
 
 # Fail early if working tree has unstaged changes — release should reflect committed code
 if [ -n "$(git status --porcelain)" ]; then
@@ -55,8 +55,8 @@ fi
 # 1. Build the app
 bash build_app.sh
 
-APP="$SCRIPT_DIR/dist/RoonTag.app"
-ZIP="$SCRIPT_DIR/dist/RoonTag.app.zip"
+APP="$SCRIPT_DIR/dist/Fly Me To The Roon.app"
+ZIP="$SCRIPT_DIR/dist/Fly Me To The Roon.app.zip"
 
 if [ ! -d "$APP" ]; then
     echo "ERROR: $APP was not produced by build_app.sh" >&2
@@ -90,12 +90,12 @@ git push origin "$TAG"
 
 echo "==> Creating GitHub release"
 gh release create "$TAG" "$ZIP" \
-    --title "RoonTag $TAG" \
+    --title "Fly Me To The Roon $TAG" \
     --notes-file "$NOTES_FILE"
 
 rm -f "$NOTES_FILE"
 
 echo ""
-echo "✓  RoonTag $TAG published."
+echo "✓  Fly Me To The Roon $TAG published."
 echo "   Other Macs will see the update on next launch."
-echo "   Release: https://github.com/markpytlik/roontaggr/releases/tag/$TAG"
+echo "   Release: https://github.com/sh1nd0/roontaggr/releases/tag/$TAG"

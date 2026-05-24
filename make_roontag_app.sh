@@ -1,118 +1,139 @@
 #!/bin/bash
-# Builds the RoonTag.app bundle with icon, renames from RoonTaggr if present.
-# Run once:  bash make_roontag_app.sh
+# Build / refresh the "Fly Me To The Roon.app" bundle (without PyInstaller).
+# Generates AppIcon.icns from a Pillow design and installs the launcher bundle
+# that points at app.py inside this checkout — useful while iterating in dev.
+#
+# Flags:
+#   --icon-only   Generate AppIcon.icns and exit (used by build_app.sh)
+#
+# Usage: bash make_roontag_app.sh [--icon-only]
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV="$SCRIPT_DIR/venv"
 PY="$VENV/bin/python3"
 
-OLD_APP="/Applications/RoonTaggr.app"
-NEW_APP="/Applications/RoonTag.app"
-ICNS_OUT="$SCRIPT_DIR/RoonTag.icns"
+ICON_ONLY=0
+if [ "${1:-}" = "--icon-only" ]; then
+    ICON_ONLY=1
+fi
+
+APP_NAME="Fly Me To The Roon"
+OLD_APPS=(
+    "/Applications/RoonTaggr.app"
+    "/Applications/RoonTag.app"
+)
+NEW_APP="/Applications/$APP_NAME.app"
+ICNS_OUT="$SCRIPT_DIR/AppIcon.icns"
 
 # ── 1. Generate icon ─────────────────────────────────────────────────────────
-echo "==> Generating icon…"
+echo "==> Generating $APP_NAME icon…"
 "$PY" - <<'PYEOF'
-import sys, math
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
-ICONSET = Path("/tmp/RoonTag.iconset")
+ICONSET = Path("/tmp/FlyMeToTheRoon.iconset")
 ICONSET.mkdir(exist_ok=True)
 
-def make_icon(size):
-    # ── background: blue-to-purple gradient ──────────────────────────────
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    for y in range(size):
-        t = y / max(size - 1, 1)
-        r = int(0x00 * (1 - t) + 0x58 * t)
-        g = int(0x7A * (1 - t) + 0x56 * t)
-        b = int(0xFF * (1 - t) + 0xD6 * t)
-        for x in range(size):
-            img.putpixel((x, y), (r, g, b, 255))
+# ── Palette ──────────────────────────────────────────────────────────────────
+# Roon-style violet diagonal gradient + white paper airplane carrying a music note.
+TOP_LEFT     = (0x86, 0x6E, 0xFF)   # bright violet
+BOTTOM_RIGHT = (0x47, 0x36, 0xC2)   # deep indigo
+WHITE        = (0xFF, 0xFF, 0xFF, 255)
+WHITE_DIM    = (0xE8, 0xE3, 0xFF, 255)   # subtle shadow on the lower wing
+NOTE_COLOR   = (0x2A, 0x1E, 0x8E, 255)   # deep indigo for the note inside the plane
 
-    # ── rounded-rectangle mask (Apple icon shape) ─────────────────────────
-    radius = int(size * 0.225)
+
+def _lerp(a, b, t):
+    return tuple(int(a[i] * (1 - t) + b[i] * t) for i in range(3))
+
+
+def make_icon(size: int) -> Image.Image:
+    # ── Diagonal gradient background ─────────────────────────────────────
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    px = img.load()
+    diag = (size - 1) * 2 or 1
+    for y in range(size):
+        for x in range(size):
+            t = (x + y) / diag
+            r, g, b = _lerp(TOP_LEFT, BOTTOM_RIGHT, t)
+            px[x, y] = (r, g, b, 255)
+
+    # Subtle radial highlight near the top-left
+    highlight = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    hd = ImageDraw.Draw(highlight)
+    rr = int(size * 0.55)
+    cx_h, cy_h = int(size * 0.30), int(size * 0.22)
+    for i in range(rr, 0, -1):
+        alpha = int(38 * (i / rr) ** 2)
+        hd.ellipse([cx_h - i, cy_h - i, cx_h + i, cy_h + i],
+                   fill=(255, 255, 255, alpha))
+    highlight = highlight.filter(ImageFilter.GaussianBlur(radius=size * 0.08))
+    img = Image.alpha_composite(img, highlight)
+
+    # ── Rounded-rectangle mask (macOS icon shape) ────────────────────────
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).rounded_rectangle(
-        [0, 0, size - 1, size - 1], radius=radius, fill=255
+        [0, 0, size - 1, size - 1],
+        radius=int(size * 0.225),
+        fill=255,
     )
     img.putalpha(mask)
+
     draw = ImageDraw.Draw(img)
 
-    # ── white tag shape ───────────────────────────────────────────────────
-    pad   = size * 0.175
-    tw    = size - 2 * pad          # tag width
-    th    = tw * 1.08               # tag height
-    cx    = size / 2
-    ty    = (size - th) / 2 + size * 0.015  # top y
-
-    hole_half = tw * 0.095          # half-width of hole notch
-
-    # Polygon: clockwise from top-left corner
-    tag_pts = [
-        (cx - tw/2,           ty + tw * 0.13),   # TL after corner
-        (cx - tw/2 + tw*0.13, ty),                # TL corner top
-        (cx - hole_half - tw*0.05, ty),           # top, left of notch
-        (cx - hole_half,      ty + size*0.028),   # notch left inner
-        (cx + hole_half,      ty + size*0.028),   # notch right inner
-        (cx + hole_half + tw*0.05, ty),           # top, right of notch
-        (cx + tw/2 - tw*0.13, ty),                # TR corner top
-        (cx + tw/2,           ty + tw * 0.13),   # TR after corner
-        (cx + tw/2,           ty + th * 0.74),   # right side bottom
-        (cx,                  ty + th),            # bottom point
-        (cx - tw/2,           ty + th * 0.74),   # left side bottom
+    # ── Trail of dots behind the plane ───────────────────────────────────
+    trail_pts = [
+        (size * 0.18, size * 0.78, size * 0.022, 90),
+        (size * 0.27, size * 0.70, size * 0.030, 140),
+        (size * 0.36, size * 0.62, size * 0.038, 190),
     ]
-    draw.polygon(tag_pts, fill=(255, 255, 255, 242))
+    for tx, ty, tr, a in trail_pts:
+        draw.ellipse([tx - tr, ty - tr, tx + tr, ty + tr],
+                     fill=(255, 255, 255, a))
 
-    # punch hole circle (gradient-coloured to look transparent)
-    hr = tw * 0.082
-    hcy = ty + size * 0.028
-    t_h = hcy / size
-    hfill = (
-        int(0x00*(1-t_h) + 0x58*t_h),
-        int(0x7A*(1-t_h) + 0x56*t_h),
-        int(0xFF*(1-t_h) + 0xD6*t_h),
-        255,
-    )
-    draw.ellipse([cx-hr, hcy-hr, cx+hr, hcy+hr], fill=hfill)
+    # ── Paper airplane ───────────────────────────────────────────────────
+    def P(x, y):
+        return (size * x, size * y)
 
-    # ── eighth note inside the tag ────────────────────────────────────────
-    nc_x = cx + tw * 0.045
-    nc_y = ty + th * 0.535
-    note_color = (0x00, 0x40, 0xB8, 255)
+    tip       = P(0.83, 0.20)
+    back_top  = P(0.18, 0.74)
+    notch     = P(0.36, 0.60)
+    back_bot  = P(0.58, 0.85)
 
-    # note head (slightly tilted oval)
-    nh_w = tw * 0.275
-    nh_h = tw * 0.195
+    draw.polygon([tip, back_top, notch], fill=WHITE)        # upper wing
+    draw.polygon([tip, notch, back_bot], fill=WHITE_DIM)    # lower fold (shadow)
+
+    fold_w = max(2, int(size * 0.006))
+    draw.line([tip, notch], fill=(0xC9, 0xC0, 0xF5, 255), width=fold_w)
+
+    # ── Tiny musical note tucked into the plane ──────────────────────────
+    nc = P(0.58, 0.40)
+    nh_w = size * 0.080
+    nh_h = size * 0.060
     draw.ellipse(
-        [nc_x - nh_w/2, nc_y - nh_h/2,
-         nc_x + nh_w/2, nc_y + nh_h/2],
-        fill=note_color,
+        [nc[0] - nh_w / 2, nc[1] - nh_h / 2,
+         nc[0] + nh_w / 2, nc[1] + nh_h / 2],
+        fill=NOTE_COLOR,
     )
-
-    # stem
-    sw     = max(2, int(size * 0.028))
-    sx     = int(nc_x + nh_w/2 - sw * 0.6)
-    sy_bot = int(nc_y - nh_h * 0.05)
-    sy_top = int(sy_bot - tw * 0.56)
-    draw.rectangle([sx, sy_top, sx + sw, sy_bot], fill=note_color)
-
-    # flag (curved rightward from stem top)
-    fw = tw * 0.20
-    fh = tw * 0.26
-    fp = [
-        (sx + sw,        sy_top),
-        (sx + sw + fw,   sy_top + fh * 0.28),
-        (sx + sw + fw*0.85, sy_top + fh * 0.58),
-        (sx + sw,        sy_top + fh * 0.72),
+    stem_w = max(2, int(size * 0.012))
+    sx = int(nc[0] + nh_w / 2 - stem_w * 0.6)
+    sy_bot = int(nc[1] - nh_h * 0.10)
+    sy_top = int(sy_bot - size * 0.115)
+    draw.rectangle([sx, sy_top, sx + stem_w, sy_bot], fill=NOTE_COLOR)
+    fw = size * 0.055
+    fh = size * 0.065
+    flag = [
+        (sx + stem_w,             sy_top),
+        (sx + stem_w + fw,        sy_top + fh * 0.30),
+        (sx + stem_w + fw * 0.85, sy_top + fh * 0.62),
+        (sx + stem_w,             sy_top + fh * 0.74),
     ]
-    draw.polygon(fp, fill=note_color)
+    draw.polygon(flag, fill=NOTE_COLOR)
 
     return img
 
-# standard macOS iconset filenames
+
 SPECS = [
     ("icon_16x16.png",      16),
     ("icon_16x16@2x.png",   32),
@@ -126,38 +147,46 @@ SPECS = [
     ("icon_512x512@2x.png", 1024),
 ]
 
-rendered = {}
+cache: dict[int, Image.Image] = {}
 for fname, sz in SPECS:
-    if sz not in rendered:
-        rendered[sz] = make_icon(sz)
-    rendered[sz].save(ICONSET / fname)
+    if sz not in cache:
+        cache[sz] = make_icon(sz)
+    cache[sz].save(ICONSET / fname)
 
 print(f"  Saved {len(SPECS)} PNGs to {ICONSET}")
 PYEOF
 
 # ── 2. Convert iconset → .icns ───────────────────────────────────────────────
 echo "==> Running iconutil…"
-iconutil -c icns /tmp/RoonTag.iconset -o "$ICNS_OUT"
+iconutil -c icns /tmp/FlyMeToTheRoon.iconset -o "$ICNS_OUT"
 echo "  Icon: $ICNS_OUT"
 
-# ── 3. Build / update RoonTag.app ───────────────────────────────────────────
-echo "==> Building RoonTag.app…"
+# Legacy filename mirror so older specs still find an icon
+cp "$ICNS_OUT" "$SCRIPT_DIR/RoonTag.icns" 2>/dev/null || true
 
-# Remove old app if it exists under the old name
-if [ -d "$OLD_APP" ] && [ "$OLD_APP" != "$NEW_APP" ]; then
-    echo "  Removing old $OLD_APP…"
-    rm -rf "$OLD_APP"
+if [ "$ICON_ONLY" = "1" ]; then
+    exit 0
 fi
+
+# ── 3. Remove any legacy app bundles ────────────────────────────────────────
+for OLD in "${OLD_APPS[@]}"; do
+    if [ -d "$OLD" ] && [ "$OLD" != "$NEW_APP" ]; then
+        echo "  Removing legacy $OLD…"
+        rm -rf "$OLD"
+    fi
+done
+
+# ── 4. Build dev launcher bundle (points at app.py in this checkout) ────────
+echo "==> Building $APP_NAME.app (dev launcher)…"
 
 MACOS="$NEW_APP/Contents/MacOS"
 RES="$NEW_APP/Contents/Resources"
 mkdir -p "$MACOS" "$RES"
 
-# ── 4. Copy icon ─────────────────────────────────────────────────────────────
 cp "$ICNS_OUT" "$RES/AppIcon.icns"
 
-# ── 5. Write launcher ────────────────────────────────────────────────────────
-cat > "$MACOS/RoonTag" << LAUNCHER
+LAUNCHER_NAME="$APP_NAME"
+cat > "$MACOS/$LAUNCHER_NAME" << LAUNCHER
 #!/bin/bash
 # Set tkdnd library path if available (enables in-window drag-and-drop)
 TKDND_PATH="\$(brew --prefix tkdnd 2>/dev/null)/lib"
@@ -167,12 +196,11 @@ fi
 # Override destination folder if ROONTAGGR_DEST is set in the environment.
 # On a remote machine pointing at a network share, set this in ~/.zshenv:
 #   export ROONTAGGR_DEST="/Volumes/Mark-Studio/PARA/5. ROON"
-LOG="\$HOME/Library/Logs/RoonTag.log"
+LOG="\$HOME/Library/Logs/Fly Me To The Roon.log"
 exec "$VENV/bin/python3" "$SCRIPT_DIR/app.py" "\$@" >>"\$LOG" 2>&1
 LAUNCHER
-chmod +x "$MACOS/RoonTag"
+chmod +x "$MACOS/$LAUNCHER_NAME"
 
-# ── 6. Write Info.plist ──────────────────────────────────────────────────────
 cat > "$NEW_APP/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -180,15 +208,15 @@ cat > "$NEW_APP/Contents/Info.plist" << PLIST
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>RoonTag</string>
+    <string>Fly Me To The Roon</string>
     <key>CFBundleDisplayName</key>
-    <string>RoonTag</string>
+    <string>Fly Me To The Roon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.mark.roontag</string>
+    <string>com.mark.flymetotheroon</string>
     <key>CFBundleVersion</key>
-    <string>1.1</string>
+    <string>dev</string>
     <key>CFBundleExecutable</key>
-    <string>RoonTag</string>
+    <string>Fly Me To The Roon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
@@ -216,18 +244,17 @@ cat > "$NEW_APP/Contents/Info.plist" << PLIST
         </dict>
     </array>
     <key>NSAppleEventsUsageDescription</key>
-    <string>RoonTag needs to access files to tag music.</string>
+    <string>Fly Me To The Roon needs to access files to tag music.</string>
 </dict>
 </plist>
 PLIST
 
-# ── 7. Touch app so Finder picks up new icon ─────────────────────────────────
 touch "$NEW_APP"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
     -f "$NEW_APP" 2>/dev/null || true
 
 echo ""
-echo "✓ RoonTag.app installed at $NEW_APP"
+echo "✓ $APP_NAME.app installed at $NEW_APP"
 echo ""
-echo "Launch with:  open /Applications/RoonTag.app"
+echo "Launch with:  open \"$NEW_APP\""
 echo "Or double-click it in Finder / Applications."

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RoonTag — drag-and-drop music metadata editor for Roon.
+Fly Me To The Roon — drag-and-drop music metadata editor for Roon.
 
 Drop files/folders here → review & edit tags → Process All → files land in ~/PARA/5. ROON
 
@@ -106,7 +106,7 @@ def _load_changelog(max_chars: int = 2000) -> str:
 VERSION = _load_version()
 
 # ── update checker (GitHub Releases) ────────────────────────────────────────
-UPDATE_REPO = "markpytlik/roontaggr"
+UPDATE_REPO = "sh1nd0/roontaggr"
 UPDATE_RELEASES_API = f"https://api.github.com/repos/{UPDATE_REPO}/releases/latest"
 
 def _parse_version(s: str) -> tuple:
@@ -133,22 +133,22 @@ def _fetch_latest_release() -> tuple:
         req = urllib.request.Request(
             UPDATE_RELEASES_API,
             headers={"Accept": "application/vnd.github+json",
-                     "User-Agent": f"RoonTag/{VERSION}"},
+                     "User-Agent": f"FlyMeToTheRoon/{VERSION}"},
         )
         with urllib.request.urlopen(req, timeout=8) as r:
             return "ok", json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        print(f"[RoonTag] update check HTTP {e.code}: {e.reason}",
+        print(f"[FlyMeToTheRoon] update check HTTP {e.code}: {e.reason}",
               file=sys.stderr, flush=True)
         if e.code == 404:
             return "no_releases", {}
         return "error", {"msg": f"GitHub returned HTTP {e.code}: {e.reason}"}
     except urllib.error.URLError as e:
-        print(f"[RoonTag] update check network error: {e.reason}",
+        print(f"[FlyMeToTheRoon] update check network error: {e.reason}",
               file=sys.stderr, flush=True)
         return "error", {"msg": f"Network unreachable: {e.reason}"}
     except Exception as e:
-        print(f"[RoonTag] update check failed: {e}",
+        print(f"[FlyMeToTheRoon] update check failed: {e}",
               file=sys.stderr, flush=True)
         return "error", {"msg": str(e)}
 
@@ -156,7 +156,7 @@ def _fetch_latest_release() -> tuple:
 # so errors are visible via Console.app instead of disappearing silently.
 import sys as _sys
 if getattr(_sys, "frozen", False):
-    _log_path = Path.home() / "Library" / "Logs" / "RoonTag.log"
+    _log_path = Path.home() / "Library" / "Logs" / "Fly Me To The Roon.log"
     try:
         _log_path.parent.mkdir(parents=True, exist_ok=True)
         _log_fh = open(_log_path, "a", buffering=1)
@@ -176,7 +176,7 @@ try:
         cafile=_certifi.where()
     )
 except Exception as _e:
-    print(f"[RoonTag] SSL/certifi setup skipped: {_e}", file=_sys.stderr, flush=True)
+    print(f"[FlyMeToTheRoon] SSL/certifi setup skipped: {_e}", file=_sys.stderr, flush=True)
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -234,21 +234,27 @@ def _get_roon_dir() -> Path:
 ROON_DIR = _get_roon_dir()
 MUSIC_EXTS = {".mp3", ".flac", ".aif", ".aiff", ".wav", ".m4a"}
 
-# ── colours (macOS light) ────────────────────────────────────────────────────
-BG       = "#f5f5f7"   # window background (Apple light grey)
-BG2      = "#ffffff"   # cards, toolbar, queue background
-BG3      = "#f0f0f2"   # input fields, table rows
-BG_HOVER = "#e8e8ea"   # hover state
-ACCENT   = "#0071e3"   # Apple blue
-ACCENT_HI = "#0077ed"
-ACCENT_LO = "#005bbf"
-FG       = "#1d1d1f"   # primary text
-FG_DIM   = "#6e6e73"   # secondary/label text
-FG_MUTED = "#86868b"   # tertiary / caption
-SEL      = "#cce4ff"   # selected row
-ERR      = "#c0392b"
-OK       = "#28a745"
-BORDER   = "#d2d2d7"   # subtle dividers
+# ── palette + typography (Roon-inspired light theme) ────────────────────────
+BG       = "#FAF8F4"   # warm paper-white window background
+BG2      = "#FFFFFF"   # cards, toolbar, surfaces
+BG3      = "#F1EEE7"   # input fields, queue, table rows
+BG_HOVER = "#E9E5DC"   # hover state
+ACCENT   = "#6D5BE3"   # Roon-style violet
+ACCENT_HI = "#7E6DEC"
+ACCENT_LO = "#5747C8"
+FG       = "#1A1A1F"   # primary text
+FG_DIM   = "#6B665E"   # warm secondary/label text
+FG_MUTED = "#9A958C"   # tertiary / caption
+SEL      = "#E8E1FF"   # lavender selected row
+ERR      = "#C0392B"
+OK       = "#2BA84A"
+BORDER   = "#E6E1D6"   # warm subtle divider
+
+# Typography. Display = serif headline (Roon-style). Body = clean sans.
+# Iowan Old Style + SF Pro ship on every modern Mac.
+FONT_DISPLAY = "Iowan Old Style"
+FONT_BODY    = "SF Pro Text"
+FONT_MONO    = "SF Mono"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Data models
@@ -398,10 +404,10 @@ def _http_get(url: str, timeout: int = 8) -> Optional[bytes]:
     try:
         if HAS_REQUESTS:
             r = _requests.get(url, timeout=timeout,
-                              headers={"User-Agent": "RoonTag/1.0"})
+                              headers={"User-Agent": "FlyMeToTheRoon/1.0"})
             return r.content if r.ok else None
         with urllib.request.urlopen(
-            urllib.request.Request(url, headers={"User-Agent": "RoonTag/1.0"}),
+            urllib.request.Request(url, headers={"User-Agent": "FlyMeToTheRoon/1.0"}),
             timeout=timeout
         ) as resp:
             return resp.read()
@@ -491,7 +497,7 @@ def read_tags(path: Path) -> Track:
 
     except Exception as _e:
         import sys
-        print(f"[RoonTag] read_tags error for {path}: {_e}", file=sys.stderr, flush=True)
+        print(f"[FlyMeToTheRoon] read_tags error for {path}: {_e}", file=sys.stderr, flush=True)
 
     if not t.title or not t.artist:
         fa, ft, _ = _parse_filename_hints(path)
@@ -556,7 +562,7 @@ def read_album_tags(paths: list[Path]) -> Album:
                     break
     except Exception as _e:
         import sys
-        print(f"[RoonTag] read_album_tags error for {first}: {_e}", file=sys.stderr, flush=True)
+        print(f"[FlyMeToTheRoon] read_album_tags error for {first}: {_e}", file=sys.stderr, flush=True)
 
     # Fall back to image files in the same folder if no embedded artwork
     if not alb.artwork_bytes:
@@ -603,7 +609,7 @@ def read_album_tags(paths: list[Path]) -> Album:
     _aw = len(alb.artwork_bytes) if alb.artwork_bytes else 0
     _t0 = alb.tracks[0].title if alb.tracks else ""
     print(
-        f"[RoonTag] loaded: artist={alb.artist!r} album={alb.album!r} "
+        f"[FlyMeToTheRoon] loaded: artist={alb.artist!r} album={alb.album!r} "
         f"year={alb.year!r} title0={_t0!r} artwork={_aw}b",
         file=sys.stderr, flush=True
     )
@@ -729,7 +735,7 @@ def write_tags_and_move(alb: Album, move: bool = True) -> None:
     for track in alb.tracks:
         path = track.path
         ext  = path.suffix.lower()
-        print(f"[RoonTag] write_and_move: title={track.title!r} src={path}", file=sys.stderr, flush=True)
+        print(f"[FlyMeToTheRoon] write_and_move: title={track.title!r} src={path}", file=sys.stderr, flush=True)
 
         try:
             if ext == ".mp3":
@@ -757,10 +763,10 @@ def write_tags_and_move(alb: Album, move: bool = True) -> None:
         if dest.exists():
             base, suf = dest.stem, dest.suffix
             dest = dest.parent / f"{base}_dup{suf}"
-        print(f"[RoonTag] {'moving' if move else 'renaming'}: {path.name!r} -> {dest.name!r}", file=sys.stderr, flush=True)
+        print(f"[FlyMeToTheRoon] {'moving' if move else 'renaming'}: {path.name!r} -> {dest.name!r}", file=sys.stderr, flush=True)
         shutil.move(str(path), str(dest))
         track.path = dest
-        print(f"[RoonTag] done: {dest}", file=sys.stderr, flush=True)
+        print(f"[FlyMeToTheRoon] done: {dest}", file=sys.stderr, flush=True)
 
 def _write_mp3(track: Track, alb: Album) -> None:
     path = track.path
@@ -875,7 +881,7 @@ def _tk_image(data: bytes, size: int = 120) -> Optional["ImageTk.PhotoImage"]:
 class RoonTag:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title(f"RoonTag {VERSION}")
+        self.root.title(f"Fly Me To The Roon {VERSION}")
         self.root.configure(bg=BG)
         self.root.minsize(960, 620)
         self.root.geometry("1160x720")
@@ -945,7 +951,7 @@ class RoonTag:
         # Apple/App menu (name='apple' is treated specially on macOS)
         app_menu = tk.Menu(menubar, name="apple", tearoff=False)
         menubar.add_cascade(menu=app_menu)
-        app_menu.add_command(label="About RoonTag",
+        app_menu.add_command(label="About Fly Me To The Roon",
                              command=self._show_about)
         app_menu.add_separator()
         app_menu.add_command(label="Check for Updates…",
@@ -1002,57 +1008,68 @@ class RoonTag:
                     fieldbackground=BG2, borderwidth=0, relief="flat")
         s.configure("TFrame", background=BG)
         s.configure("Card.TFrame", background=BG2)
-        s.configure("TLabel", background=BG, foreground=FG)
-        s.configure("Card.TLabel", background=BG2, foreground=FG)
+        s.configure("TLabel", background=BG, foreground=FG,
+                    font=(FONT_BODY, 12))
+        s.configure("Card.TLabel", background=BG2, foreground=FG,
+                    font=(FONT_BODY, 12))
         s.configure("Dim.TLabel", background=BG, foreground=FG_DIM,
-                    font=("SF Pro Text", 10, "bold"))
+                    font=(FONT_BODY, 10, "bold"))
 
-        # Secondary button (default). Softer, rounded-ish via padding.
+        # Secondary button — pill-shaped, hairline border
         s.configure("TButton", background=BG2, foreground=FG,
-                    padding=(12, 6), relief="flat", borderwidth=1, bordercolor=BORDER,
-                    font=("SF Pro Text", 12))
+                    padding=(14, 7), relief="flat",
+                    borderwidth=1, bordercolor=BORDER,
+                    focusthickness=0, focuscolor=BG2,
+                    font=(FONT_BODY, 12))
         s.map("TButton",
               background=[("active", BG_HOVER), ("pressed", BG3)],
+              bordercolor=[("active", BORDER), ("pressed", BORDER)],
               foreground=[("active", FG), ("pressed", FG)])
 
-        # Primary button — accent filled
-        s.configure("Accent.TButton", background=ACCENT, foreground="#fff",
-                    padding=(16, 7), relief="flat", borderwidth=0,
-                    font=("SF Pro Text", 12, "bold"))
+        # Primary button — filled violet, no border
+        s.configure("Accent.TButton", background=ACCENT, foreground="#FFFFFF",
+                    padding=(18, 8), relief="flat", borderwidth=0,
+                    focusthickness=0, focuscolor=ACCENT,
+                    font=(FONT_BODY, 12, "bold"))
         s.map("Accent.TButton",
               background=[("active", ACCENT_HI), ("pressed", ACCENT_LO)],
-              foreground=[("active", "#fff"), ("pressed", "#fff")])
+              foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")])
 
-        # Ghost button — text-style, for lightweight actions
+        # Ghost button — text-only, for lightweight actions
         s.configure("Ghost.TButton", background=BG, foreground=ACCENT,
                     padding=(8, 5), relief="flat", borderwidth=0,
-                    font=("SF Pro Text", 12))
+                    focusthickness=0, focuscolor=BG,
+                    font=(FONT_BODY, 12))
         s.map("Ghost.TButton",
               background=[("active", BG_HOVER), ("pressed", BG3)],
-              foreground=[("active", ACCENT), ("pressed", ACCENT)])
+              foreground=[("active", ACCENT_HI), ("pressed", ACCENT_LO)])
 
         # Treeview
         s.configure("Treeview", background=BG2, foreground=FG,
-                    fieldbackground=BG2, rowheight=28, borderwidth=0,
-                    font=("SF Pro Text", 12))
-        s.configure("Treeview.Heading", background=BG3, foreground=FG_DIM,
-                    relief="flat", padding=(10, 5), font=("SF Pro Text", 10, "bold"))
+                    fieldbackground=BG2, rowheight=30, borderwidth=0,
+                    font=(FONT_BODY, 12))
+        s.configure("Treeview.Heading", background=BG2, foreground=FG_DIM,
+                    relief="flat", padding=(10, 6),
+                    font=(FONT_BODY, 10, "bold"))
         s.map("Treeview",
               background=[("selected", SEL)],
               foreground=[("selected", FG)])
+        s.map("Treeview.Heading",
+              background=[("active", BG_HOVER)])
 
         # Entries
         s.configure("TEntry", fieldbackground=BG2, foreground=FG,
-                    insertcolor=FG, relief="flat", padding=(8, 6),
-                    borderwidth=1, bordercolor=BORDER)
+                    insertcolor=FG, relief="flat", padding=(10, 7),
+                    borderwidth=1, bordercolor=BORDER,
+                    font=(FONT_BODY, 12))
         s.map("TEntry", bordercolor=[("focus", ACCENT)])
 
         # Check / Scroll
         s.configure("TCheckbutton", background=BG, foreground=FG,
-                    font=("SF Pro Text", 12))
+                    font=(FONT_BODY, 12))
         s.map("TCheckbutton", background=[("active", BG)])
         s.configure("Card.TCheckbutton", background=BG2, foreground=FG,
-                    font=("SF Pro Text", 12))
+                    font=(FONT_BODY, 12))
         s.map("Card.TCheckbutton", background=[("active", BG2)])
         s.configure("TScrollbar", background=BG3, troughcolor=BG,
                     arrowcolor=FG_DIM, relief="flat", borderwidth=0)
@@ -1066,16 +1083,16 @@ class RoonTag:
         # ── toolbar ─────────────────────────────────────────────────────
         bar = tk.Frame(self.root, bg=BG2)
         bar.pack(side="top", fill="x")
-        tk.Frame(bar, bg=BG2, height=12).pack(side="top", fill="x")  # top breathing
+        tk.Frame(bar, bg=BG2, height=16).pack(side="top", fill="x")  # top breathing
 
         bar_inner = tk.Frame(bar, bg=BG2)
-        bar_inner.pack(side="top", fill="x", padx=16, pady=(0, 12))
+        bar_inner.pack(side="top", fill="x", padx=22, pady=(0, 16))
 
-        # Left cluster — bring work in
+        # Left cluster — brand + bring work in
         left_cluster = tk.Frame(bar_inner, bg=BG2)
         left_cluster.pack(side="left")
-        tk.Label(left_cluster, text="RoonTag", bg=BG2, fg=ACCENT,
-                 font=("SF Pro Display", 17, "bold")).pack(side="left", padx=(0, 18))
+        tk.Label(left_cluster, text="Fly Me To The Roon", bg=BG2, fg=FG,
+                 font=(FONT_DISPLAY, 22, "bold")).pack(side="left", padx=(0, 22))
         ttk.Button(left_cluster, text="＋  Add Files",
                    command=self._add_files).pack(side="left", padx=(0, 6))
         ttk.Button(left_cluster, text="＋  Add Folder",
@@ -1104,7 +1121,7 @@ class RoonTag:
         sbar.pack(side="bottom", fill="x")
         self._status_var = tk.StringVar(value="Add files to begin.")
         tk.Label(sbar, textvariable=self._status_var,
-                 bg=BG2, fg=FG_DIM, font=("SF Pro Text", 11)).pack(side="left", padx=12)
+                 bg=BG2, fg=FG_DIM, font=(FONT_BODY, 11)).pack(side="left", padx=12)
 
         # ── main paned area ──────────────────────────────────────────────
         paned = tk.PanedWindow(self.root, orient="horizontal",
@@ -1119,15 +1136,15 @@ class RoonTag:
         q_hdr = tk.Frame(left, bg=BG3)
         q_hdr.pack(fill="x")
         tk.Label(q_hdr, text="QUEUE", bg=BG3, fg=FG_DIM,
-                 font=("SF Pro Text", 10, "bold")).pack(side="left", padx=12, pady=(11, 4))
+                 font=(FONT_BODY, 10, "bold")).pack(side="left", padx=12, pady=(11, 4))
         tk.Frame(left, bg=BORDER, height=1).pack(fill="x")
 
         # Empty-state help label
         self._empty_lbl = tk.Label(
             left,
             text="Click Add Files… or Add Folder…\nto load music into the queue.\n\n"
-                 "You can also drag files onto the\nRoonTag icon in your Dock.",
-            bg=BG3, fg=FG_DIM, font=("SF Pro Text", 12), justify="center",
+                 "You can also drag files onto the\nFly Me To The Roon icon in your Dock.",
+            bg=BG3, fg=FG_DIM, font=(FONT_BODY, 12), justify="center",
         )
         self._empty_lbl.pack(pady=30, padx=10)
 
@@ -1139,7 +1156,7 @@ class RoonTag:
             bg=BG3, fg=FG, selectbackground=SEL, selectforeground=FG,
             activestyle="none", highlightthickness=0,
             relief="flat", borderwidth=0,
-            font=("SF Pro Text", 13),
+            font=(FONT_BODY, 13),
             yscrollcommand=sb.set,
         )
         sb.configure(command=self._queue.yview)
@@ -1179,16 +1196,16 @@ class RoonTag:
         chain cards top-to-bottom simply by calling this in order.
         """
         wrap = tk.Frame(parent, bg=BG)
-        wrap.pack(fill="x", padx=18, pady=(pady_top, 14))
+        wrap.pack(fill="x", padx=22, pady=(pady_top, 16))
 
         card = tk.Frame(wrap, bg=BG2, highlightbackground=BORDER,
                         highlightthickness=1)
         card.pack(fill="x")
 
         hdr = tk.Frame(card, bg=BG2)
-        hdr.pack(fill="x", padx=18, pady=(12, 6))
+        hdr.pack(fill="x", padx=22, pady=(14, 6))
         tk.Label(hdr, text=title.upper(), bg=BG2, fg=FG_DIM,
-                 font=("SF Pro Text", 10, "bold")).pack(anchor="w")
+                 font=(FONT_BODY, 10, "bold")).pack(anchor="w")
 
         return card
 
@@ -1208,7 +1225,7 @@ class RoonTag:
         art_outer.pack()
         art_outer.pack_propagate(False)
         self._art_label = tk.Label(art_outer, bg=BG3, fg=FG_DIM,
-                                   text="No Artwork", font=("SF Pro Text", 11),
+                                   text="No Artwork", font=(FONT_BODY, 11),
                                    justify="center", cursor="hand2")
         self._art_label.pack(expand=True, fill="both", padx=1, pady=1)
         self._art_label.bind("<Button-1>", lambda e: self._choose_artwork())
@@ -1226,7 +1243,7 @@ class RoonTag:
 
         def lbl(text):
             tk.Label(ff, text=text, bg=BG2, fg=FG_DIM,
-                     font=("SF Pro Text", 10, "bold")).pack(anchor="w", pady=(6, 2))
+                     font=(FONT_BODY, 10, "bold")).pack(anchor="w", pady=(6, 2))
 
         self._title_var  = tk.StringVar()
         self._artist_var = tk.StringVar()
@@ -1238,7 +1255,7 @@ class RoonTag:
         self._title_entry = tk.Entry(
             ff, textvariable=self._title_var, width=42,
             bg=BG3, fg=FG, insertbackground=FG, relief="flat",
-            font=("SF Pro Text", 13),
+            font=(FONT_BODY, 13),
             highlightbackground=BORDER, highlightthickness=1,
         )
         self._title_entry.pack(fill="x", ipady=3)
@@ -1255,7 +1272,7 @@ class RoonTag:
             # will sanitize at save time.
             if alb.tracks:
                 if raw != alb.tracks[0].title:
-                    print(f"[RoonTag] title key event: {alb.tracks[0].title!r} → {raw!r}", file=sys.stderr, flush=True)
+                    print(f"[FlyMeToTheRoon] title key event: {alb.tracks[0].title!r} → {raw!r}", file=sys.stderr, flush=True)
                 alb.tracks[0].title = raw
                 # Do NOT call self._title_var.set(raw) — the Entry's textvariable
                 # is already _title_var, so the var is up-to-date. Re-setting it
@@ -1276,14 +1293,14 @@ class RoonTag:
         yl = tk.Frame(yr_row, bg=BG2)
         yl.pack(side="left")
         tk.Label(yl, text="YEAR", bg=BG2, fg=FG_DIM,
-                 font=("SF Pro Text", 10, "bold")).pack(anchor="w", pady=(6, 2))
+                 font=(FONT_BODY, 10, "bold")).pack(anchor="w", pady=(6, 2))
         ttk.Entry(yl, textvariable=self._year_var, width=8).pack(anchor="w", ipady=3)
 
         # Live filename preview
         self._preview_var = tk.StringVar(value="")
         tk.Label(ff, textvariable=self._preview_var,
                  bg=BG2, fg=ACCENT,
-                 font=("SF Pro Text", 11), anchor="w",
+                 font=(FONT_BODY, 11), anchor="w",
                  wraplength=420).pack(fill="x", pady=(10, 0))
 
         # Fetch + Save
@@ -1323,7 +1340,7 @@ class RoonTag:
                        "below — useful for single-file mixes, live sets, or "
                        "compilations where you want a full tracklist in the "
                        "Lyrics tag so Roon can read it."),
-                 font=("SF Pro Text", 11), wraplength=680,
+                 font=(FONT_BODY, 11), wraplength=680,
                  justify="left").pack(anchor="w", pady=(10, 0))
 
         # ── section: Tracklist (conditional) ─────────────────────────────
@@ -1335,13 +1352,13 @@ class RoonTag:
             bg=BG3, fg=FG, insertbackground=FG,
             relief="flat", borderwidth=0,
             highlightbackground=BORDER, highlightthickness=1,
-            font=("SF Mono", 11), height=8, wrap="word",
+            font=(FONT_MONO, 11), height=8, wrap="word",
             padx=10, pady=8,
         )
         self._tl_text.pack(fill="both", expand=True)
         tk.Label(tl_body, bg=BG2, fg=FG_MUTED,
                  text="One track per line. Example: 00:00 · Artist – Title",
-                 font=("SF Pro Text", 10),
+                 font=(FONT_BODY, 10),
                  justify="left").pack(anchor="w", pady=(6, 0))
 
         # ── section: Tracks (multi-track albums) ─────────────────────────
@@ -1350,7 +1367,7 @@ class RoonTag:
         tracks_body.pack(fill="both", expand=True, padx=18, pady=(2, 16))
         tk.Label(tracks_body, bg=BG2, fg=FG_MUTED,
                  text="Double-click a cell to edit the number, title, or artist.",
-                 font=("SF Pro Text", 10),
+                 font=(FONT_BODY, 10),
                  justify="left").pack(anchor="w", pady=(0, 8))
 
         tf2 = tk.Frame(tracks_body, bg=BG2)
@@ -1475,7 +1492,7 @@ class RoonTag:
                     data = buf.getvalue()
                 # If clip is a string (text) or anything else, skip silently
             except Exception as e:
-                import sys; print(f"[RoonTag] PIL clipboard failed: {e}", file=sys.stderr, flush=True)
+                import sys; print(f"[FlyMeToTheRoon] PIL clipboard failed: {e}", file=sys.stderr, flush=True)
 
         # ── macOS fallback: read PNG from clipboard via osascript ────────
         if data is None:
@@ -1497,7 +1514,7 @@ class RoonTag:
                         data = tmp.read_bytes()
                         tmp.unlink(missing_ok=True)
             except Exception as e:
-                import sys; print(f"[RoonTag] osascript clipboard failed: {e}", file=sys.stderr, flush=True)
+                import sys; print(f"[FlyMeToTheRoon] osascript clipboard failed: {e}", file=sys.stderr, flush=True)
 
         if data is None:
             self._status("No image on clipboard — right-click artwork in a browser and choose Copy Image, then paste here.")
@@ -1614,7 +1631,7 @@ class RoonTag:
                 + "\n\n".join(cmd_lines)
                 + "\n\nAfter ffmpeg finishes, each file will sit next to the "
                 "original with \"-FIXED\" in the name. Re-add the -FIXED "
-                "version to RoonTag (and delete the original once you've "
+                "version to Fly Me To The Roon (and delete the original once you've "
                 "confirmed it plays).\n\n"
                 "Add the original (broken) file(s) to the queue anyway?"
             )
@@ -1974,7 +1991,7 @@ class RoonTag:
         self._save_current_fields()
         pending = [a for a in self.albums if a.status != "done"]
         if not pending:
-            messagebox.showinfo("RoonTag", "Nothing left to process.")
+            messagebox.showinfo("Fly Me To The Roon", "Nothing left to process.")
             return
         move = self._move_var.get()
         if move:
@@ -2016,7 +2033,7 @@ class RoonTag:
             self._status(f"Done with {len(errors)} error(s).")
         else:
             self._status("All done! Files moved to Roon folder.")
-            messagebox.showinfo("RoonTag", "Done! Files are in your Roon folder.")
+            messagebox.showinfo("Fly Me To The Roon", "Done! Files are in your Roon folder.")
 
     # ── helpers ──────────────────────────────────────────────────────────
 
@@ -2029,17 +2046,20 @@ class RoonTag:
     def _show_about(self):
         """Show a scrollable About dialog with version + changelog."""
         win = tk.Toplevel(self.root)
-        win.title("About RoonTag")
+        win.title("About Fly Me To The Roon")
         win.configure(bg=BG)
         win.geometry("560x520")
         win.transient(self.root)
 
-        tk.Label(win, text=f"RoonTag  {VERSION}",
+        tk.Label(win, text="Fly Me To The Roon",
+                 bg=BG, fg=FG,
+                 font=(FONT_DISPLAY, 26, "bold")).pack(pady=(22, 0))
+        tk.Label(win, text=f"version {VERSION}",
                  bg=BG, fg=ACCENT,
-                 font=("SF Pro Display", 18, "bold")).pack(pady=(18, 2))
+                 font=(FONT_BODY, 11, "bold")).pack(pady=(2, 4))
         tk.Label(win, text="Drag-and-drop music metadata editor for Roon.",
                  bg=BG, fg=FG_DIM,
-                 font=("SF Pro Text", 11)).pack(pady=(0, 12))
+                 font=(FONT_BODY, 11)).pack(pady=(0, 14))
 
         # Changelog pane
         frame = tk.Frame(win, bg=BG)
@@ -2047,7 +2067,7 @@ class RoonTag:
         sb = ttk.Scrollbar(frame, orient="vertical")
         txt = tk.Text(frame, wrap="word", bg=BG2, fg=FG,
                       relief="flat", padx=12, pady=10,
-                      font=("SF Mono", 11),
+                      font=(FONT_MONO, 11),
                       yscrollcommand=sb.set, highlightthickness=0)
         sb.configure(command=txt.yview)
         sb.pack(side="right", fill="y")
@@ -2080,7 +2100,7 @@ class RoonTag:
             self._status(f"Up to date (v{local_ver}) — no releases published yet.")
             if not silent:
                 messagebox.showinfo(
-                    "RoonTag",
+                    "Fly Me To The Roon",
                     f"No releases have been published to GitHub yet.\n\n"
                     f"Running version: {local_ver}\n\n"
                     f"Run `bash publish.sh` on the dev Mac to cut the first release."
@@ -2101,7 +2121,7 @@ class RoonTag:
             self._status("Update check returned no data.")
             if not silent:
                 messagebox.showwarning(
-                    "RoonTag",
+                    "Fly Me To The Roon",
                     "GitHub returned an unexpected response."
                 )
             return
@@ -2147,7 +2167,7 @@ class RoonTag:
         if not zip_url:
             if not silent:
                 messagebox.showwarning(
-                    "RoonTag",
+                    "Fly Me To The Roon",
                     f"Version {remote_ver} is available on GitHub, but the "
                     "release doesn't have a .zip asset attached. Install it "
                     "manually from the Releases page."
@@ -2159,11 +2179,11 @@ class RoonTag:
             notes = notes[:1200].rstrip() + "\n…"
 
         prompt = (
-            f"A new version of RoonTag is available.\n\n"
+            f"A new version of Fly Me To The Roon is available.\n\n"
             f"Current: {local_ver}\n"
             f"Latest:  {remote_ver}\n\n"
             f"What's new:\n{notes or '(no release notes)'}\n\n"
-            f"Install now? RoonTag will relaunch."
+            f"Install now? Fly Me To The Roon will relaunch."
         )
         if messagebox.askyesno("Update available", prompt):
             self._install_update(remote_ver, zip_url)
@@ -2171,16 +2191,16 @@ class RoonTag:
     def _install_update(self, new_ver: str, zip_url: str):
         """Download the release zip and swap it into /Applications."""
         import sys as _sys
-        self._status(f"Downloading RoonTag {new_ver}…")
+        self._status(f"Downloading Fly Me To The Roon {new_ver}…")
         self.root.update_idletasks()
 
-        tmp_dir = Path("/tmp") / f"roontag-update-{os.getpid()}"
+        tmp_dir = Path("/tmp") / f"flymetotheroon-update-{os.getpid()}"
         tmp_dir.mkdir(parents=True, exist_ok=True)
-        zip_path = tmp_dir / "RoonTag.app.zip"
+        zip_path = tmp_dir / "FlyMeToTheRoon.app.zip"
 
         try:
             req = urllib.request.Request(
-                zip_url, headers={"User-Agent": f"RoonTag/{VERSION}"}
+                zip_url, headers={"User-Agent": f"FlyMeToTheRoon/{VERSION}"}
             )
             with urllib.request.urlopen(req, timeout=60) as r, open(zip_path, "wb") as f:
                 shutil.copyfileobj(r, f)
@@ -2199,16 +2219,16 @@ cd "{tmp_dir}"
 rm -rf extracted
 mkdir extracted
 ditto -x -k "{zip_path}" extracted
-NEW_APP="$(find extracted -maxdepth 2 -name 'RoonTag.app' -print -quit)"
+NEW_APP="$(find extracted -maxdepth 2 -name 'Fly Me To The Roon.app' -print -quit)"
 if [ -z "$NEW_APP" ]; then
-    osascript -e 'display dialog "RoonTag update: extracted zip contained no RoonTag.app." buttons {{"OK"}} default button 1'
+    osascript -e 'display dialog "Fly Me To The Roon update: extracted zip contained no Fly Me To The Roon.app." buttons {{"OK"}} default button 1'
     exit 1
 fi
-rm -rf /Applications/RoonTag.app
-cp -R "$NEW_APP" /Applications/RoonTag.app
+rm -rf "/Applications/Fly Me To The Roon.app"
+cp -R "$NEW_APP" "/Applications/Fly Me To The Roon.app"
 # Ad-hoc re-sign (harmless if already signed)
-codesign --force --deep --sign - /Applications/RoonTag.app 2>/dev/null || true
-open /Applications/RoonTag.app
+codesign --force --deep --sign - "/Applications/Fly Me To The Roon.app" 2>/dev/null || true
+open "/Applications/Fly Me To The Roon.app"
 """)
         install_script.chmod(0o755)
 
@@ -2226,7 +2246,7 @@ open /Applications/RoonTag.app
                                  f"Couldn't launch installer:\n\n{e}")
             return
 
-        self._status(f"Installing RoonTag {new_ver}… relaunching.")
+        self._status(f"Installing Fly Me To The Roon {new_ver}… relaunching.")
         self.root.update_idletasks()
         # Give the launcher a moment to start, then quit so it can replace us.
         self.root.after(400, lambda: (self.root.destroy(), _sys.exit(0)))

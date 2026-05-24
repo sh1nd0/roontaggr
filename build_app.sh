@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds a self-contained RoonTag.app using PyInstaller.
+# Builds a self-contained "Fly Me To The Roon.app" using PyInstaller.
 # Prerequisites: run setup.sh and build_tkdnd.sh first.
 # Usage: bash build_app.sh
 set -e
@@ -8,6 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV="$SCRIPT_DIR/venv"
 PY="$VENV/bin/python3"
 DIST="$SCRIPT_DIR/dist"
+APP_NAME="Fly Me To The Roon"
+APP_BUNDLE="$DIST/$APP_NAME.app"
+SPEC_FILE="$SCRIPT_DIR/FlyMeToTheRoon.spec"
+ICNS_FILE="$SCRIPT_DIR/AppIcon.icns"
 
 # ── Read version (single source of truth) ───────────────────────────────────
 if [ -f "$SCRIPT_DIR/VERSION" ]; then
@@ -15,7 +19,7 @@ if [ -f "$SCRIPT_DIR/VERSION" ]; then
 else
     VERSION="dev"
 fi
-echo "==> Building RoonTag v$VERSION"
+echo "==> Building $APP_NAME v$VERSION"
 
 # ── 1. Install / upgrade PyInstaller ────────────────────────────────────────
 echo "==> Installing PyInstaller…"
@@ -35,10 +39,7 @@ if [ -z "$TKDND_DYLIB" ]; then
     exit 1
 fi
 
-# For each external dependency of the tkdnd dylib, copy it into tkdnd_lib/lib/
-# and rewrite the reference to @loader_path so it's found inside the bundle.
 while IFS= read -r dep; do
-    # Skip self-references and system libs
     [[ "$dep" == "$TKDND_DYLIB" ]] && continue
     [[ "$dep" == /usr/lib/* ]]      && continue
     [[ "$dep" == /System/* ]]       && continue
@@ -48,25 +49,31 @@ while IFS= read -r dep; do
     if [ ! -f "$destlib" ]; then
         echo "  Copying $depname"
         cp "$dep" "$destlib"
-        # Allow writing (Homebrew dylibs are read-only)
         chmod u+w "$destlib"
     fi
     echo "  Patching reference: $dep → @loader_path/$depname"
     install_name_tool -change "$dep" "@loader_path/$depname" "$TKDND_DYLIB"
 done < <(otool -L "$TKDND_DYLIB" | tail -n +2 | awk '{print $1}')
 
-# Also patch install name of the dylib itself
 LIBNAME=$(basename "$TKDND_DYLIB")
 install_name_tool -id "@loader_path/$LIBNAME" "$TKDND_DYLIB" 2>/dev/null || true
 
-# ── 4. Write .spec file ──────────────────────────────────────────────────────
-echo "==> Writing RoonTag.spec…"
+# ── 4. Ensure icon exists. Generate via make_roontag_app.sh --icon-only if missing.
+if [ ! -f "$ICNS_FILE" ]; then
+    echo "==> Icon missing — generating via make_roontag_app.sh --icon-only"
+    bash "$SCRIPT_DIR/make_roontag_app.sh" --icon-only
+fi
 ICNS_ARG="None"
-if [ -f "$SCRIPT_DIR/RoonTag.icns" ]; then
-    ICNS_ARG="'$SCRIPT_DIR/RoonTag.icns'"
+if [ -f "$ICNS_FILE" ]; then
+    ICNS_ARG="'$ICNS_FILE'"
 fi
 
-cat > "$SCRIPT_DIR/RoonTag.spec" << SPECEOF
+# ── 5. Write .spec file ──────────────────────────────────────────────────────
+echo "==> Writing $SPEC_FILE…"
+# Remove legacy spec
+rm -f "$SCRIPT_DIR/RoonTag.spec"
+
+cat > "$SPEC_FILE" << SPECEOF
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
 SCRIPT_DIR = Path(r'$SCRIPT_DIR')
@@ -102,7 +109,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='RoonTag',
+    name='Fly Me To The Roon',
     debug=False,
     strip=False,
     upx=False,
@@ -120,17 +127,17 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name='RoonTag',
+    name='Fly Me To The Roon',
 )
 
 app = BUNDLE(
     coll,
-    name='RoonTag.app',
+    name='Fly Me To The Roon.app',
     icon=$ICNS_ARG,
-    bundle_identifier='com.mark.roontag',
+    bundle_identifier='com.mark.flymetotheroon',
     info_plist={
-        'CFBundleName': 'RoonTag',
-        'CFBundleDisplayName': 'RoonTag',
+        'CFBundleName': 'Fly Me To The Roon',
+        'CFBundleDisplayName': 'Fly Me To The Roon',
         'CFBundleVersion': '$VERSION',
         'CFBundleShortVersionString': '$VERSION',
         'NSHighResolutionCapable': True,
@@ -141,34 +148,34 @@ app = BUNDLE(
             'CFBundleTypeRole': 'Editor',
         }],
         'NSAppleEventsUsageDescription':
-            'RoonTag needs to access files to tag music.',
+            'Fly Me To The Roon needs to access files to tag music.',
     },
 )
 SPECEOF
 
-# ── 5. Build ─────────────────────────────────────────────────────────────────
+# ── 6. Build ─────────────────────────────────────────────────────────────────
 echo "==> Building (this takes ~1 minute)…"
 cd "$SCRIPT_DIR"
-"$VENV/bin/pyinstaller" --clean --noconfirm RoonTag.spec 2>&1 | grep -v "^INFO:"
+"$VENV/bin/pyinstaller" --clean --noconfirm "$SPEC_FILE" 2>&1 | grep -v "^INFO:"
 
-# ── 6. Ad-hoc code sign (required on Apple Silicon) ─────────────────────────
+# ── 7. Ad-hoc code sign (required on Apple Silicon) ─────────────────────────
 echo "==> Signing…"
-codesign --force --deep --sign - "$DIST/RoonTag.app" 2>/dev/null && echo "  Signed ok" || echo "  (signing skipped)"
+codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null && echo "  Signed ok" || echo "  (signing skipped)"
 
-# ── 7. Install to /Applications ─────────────────────────────────────────────
+# ── 8. Install to /Applications ─────────────────────────────────────────────
 echo "==> Installing to /Applications…"
-rm -rf /Applications/RoonTag.app
-cp -r "$DIST/RoonTag.app" /Applications/RoonTag.app
+rm -rf "/Applications/$APP_NAME.app"
+cp -R "$APP_BUNDLE" "/Applications/$APP_NAME.app"
 
-# ── 8. Register with Launch Services ────────────────────────────────────────
+# ── 9. Register with Launch Services ────────────────────────────────────────
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-    -f /Applications/RoonTag.app 2>/dev/null || true
+    -f "/Applications/$APP_NAME.app" 2>/dev/null || true
 
 echo ""
-echo "✓  RoonTag v$VERSION installed at /Applications/RoonTag.app"
+echo "✓  $APP_NAME v$VERSION installed at /Applications/$APP_NAME.app"
 echo ""
-echo "Launch:   open /Applications/RoonTag.app"
-echo "Log:      ~/Library/Logs/RoonTag.log"
+echo "Launch:   open \"/Applications/$APP_NAME.app\""
+echo "Log:      ~/Library/Logs/$APP_NAME.log"
 echo ""
 echo "If macOS shows a security warning, go to:"
 echo "  System Settings → Privacy & Security → Open Anyway"

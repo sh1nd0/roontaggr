@@ -1,6 +1,6 @@
 #!/bin/bash
-# RoonTag setup script
-# Run once: bash ~/Documents/scripts/roontaggr/setup.sh
+# Fly Me To The Roon setup script
+# Run once: bash "$HOME/Documents/Claude/Projects/Fly Me To The Roon/setup.sh"
 
 set -e
 
@@ -65,16 +65,17 @@ else
     TKDND_PATH=""
 fi
 
-echo "==> Building RoonTag.app in /Applications"
+echo "==> Building Fly Me To The Roon.app in /Applications"
 
-APP="/Applications/RoonTag.app"
+APP="/Applications/Fly Me To The Roon.app"
 MACOS="$APP/Contents/MacOS"
 RES="$APP/Contents/Resources"
 
 mkdir -p "$MACOS" "$RES"
 
-# Launcher shell script
-cat > "$MACOS/RoonTag" << LAUNCHER
+# Launcher shell script — name must match CFBundleExecutable in Info.plist
+LAUNCHER_NAME="Fly Me To The Roon"
+cat > "$MACOS/$LAUNCHER_NAME" << LAUNCHER
 #!/bin/bash
 # Set tkdnd library path if available (enables in-window drag-and-drop)
 if [ -n "$TKDND_PATH" ]; then
@@ -83,10 +84,10 @@ fi
 # Override destination folder if ROONTAGGR_DEST is set in the environment.
 # On a remote machine pointing at a network share, set this in ~/.zshenv:
 #   export ROONTAGGR_DEST="/Volumes/Mark-Studio/PARA/5. ROON"
-LOG="$HOME/Library/Logs/RoonTag.log"
-exec "$VENV/bin/python3" "$SCRIPT_DIR/app.py" "\$@" >>"$LOG" 2>&1
+LOG="$HOME/Library/Logs/Fly Me To The Roon.log"
+exec "$VENV/bin/python3" "$SCRIPT_DIR/app.py" "\$@" >>"\$LOG" 2>&1
 LAUNCHER
-chmod +x "$MACOS/RoonTag"
+chmod +x "$MACOS/$LAUNCHER_NAME"
 
 # Info.plist
 cat > "$APP/Contents/Info.plist" << PLIST
@@ -96,15 +97,15 @@ cat > "$APP/Contents/Info.plist" << PLIST
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>RoonTag</string>
+    <string>Fly Me To The Roon</string>
     <key>CFBundleDisplayName</key>
-    <string>RoonTag</string>
+    <string>Fly Me To The Roon</string>
     <key>CFBundleIdentifier</key>
     <string>com.mark.roontaggr</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
     <key>CFBundleExecutable</key>
-    <string>RoonTag</string>
+    <string>Fly Me To The Roon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
@@ -132,14 +133,14 @@ cat > "$APP/Contents/Info.plist" << PLIST
         </dict>
     </array>
     <key>NSAppleEventsUsageDescription</key>
-    <string>RoonTag needs to access files to tag music.</string>
+    <string>Fly Me To The Roon needs to access files to tag music.</string>
 </dict>
 </plist>
 PLIST
 
 echo ""
-echo "✓ RoonTag.app installed at /Applications/RoonTag.app"
+echo "✓ Fly Me To The Roon.app installed at /Applications/Fly Me To The Roon.app"
 echo "✓ Dependencies installed in $VENV"
 echo ""
-echo "Launch with: open /Applications/RoonTag.app"
+echo "Launch with: open /Applications/Fly Me To The Roon.app"
 echo "  or double-click it in Finder / Applications folder"

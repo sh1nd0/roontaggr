@@ -1,6 +1,19 @@
 # Changelog
 
-All notable changes to RoonTag. Newest first.
+All notable changes to Fly Me To The Roon. Newest first.
+
+## 1.5.0 — 2026-05-24
+- Rebrand: the app is now **Fly Me To The Roon**. The macOS bundle, window
+  title, About dialog, log file, and update flow all reflect the new name.
+  Bundle identifier moves to `com.mark.flymetotheroon`.
+- New icon: a paper airplane carrying a music note on a Roon-style violet
+  gradient — generated freshly in `make_roontag_app.sh`.
+- UI refresh: warm paper-white background, violet primary accent, serif
+  display font for the brand wordmark, refined ttk button/entry/treeview
+  styling, more generous toolbar + card padding. No layout changes — same
+  workflow, brighter feel.
+- GitHub releases move to **sh1nd0/roontaggr**; the in-app update checker
+  and `publish.sh` point at the new repo.
 
 ## 1.4.5 — 2026-04-22
 - Changed: the misnamed-audio warning dialog now builds a copy-paste-ready
