@@ -2,6 +2,13 @@
 
 All notable changes to Fly Me To The Roon. Newest first.
 
+## 1.5.1 — 2026-05-24
+- Fixed: dropping a folder whose tracks live in subfolders (e.g. `Album/CD1/`,
+  `Album/CD2/`, `Album/CD3/`) now produces a single album with all its tracks
+  instead of one album per subfolder. Rule is now "one dropped folder = one
+  album, recursing into all subfolders"; drop multiple folders to get one
+  album per folder.
+
 ## 1.5.0 — 2026-05-24
 - Rebrand: the app is now **Fly Me To The Roon**. The macOS bundle, window
   title, About dialog, log file, and update flow all reflect the new name.

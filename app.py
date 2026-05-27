@@ -1642,16 +1642,32 @@ class RoonTag:
                     self._status("All dropped files had wrong extensions — nothing added.")
                     return
 
-        # If folders were dropped, group files by their parent directory —
-        # each folder becomes its own album.
-        # If only individual files were dropped (no folders), treat them all
-        # as one album regardless of where they live on disk.
-        if any(p.is_dir() for p in paths):
-            by_dir: dict[Path, list[Path]] = {}
-            for f in files:
-                by_dir.setdefault(f.parent, []).append(f)
-            groups = list(by_dir.values())
-        else:
+        # Grouping rule (matches the user's mental model of "one folder = one
+        # album"):
+        #   - Each dropped folder becomes one album, recursing into ALL its
+        #     subfolders. So a release split across CD1/, CD2/, CD3/ stays one
+        #     album with all its tracks.
+        #   - Dropping multiple folders gives you one album per folder.
+        #   - Loose files dropped together (no folder) become one album.
+        kept = set(files)
+        groups: list[list[Path]] = []
+        loose: list[Path] = []
+        for p in paths:
+            if p.is_dir():
+                sub = sorted(
+                    f for f in p.rglob("*")
+                    if f.is_file() and f.suffix.lower() in MUSIC_EXTS and f in kept
+                )
+                if sub:
+                    groups.append(sub)
+            elif p.suffix.lower() in MUSIC_EXTS and p in kept:
+                loose.append(p)
+        if loose:
+            groups.append(loose)
+        # Safety net: if grouping somehow yielded nothing (e.g. all files were
+        # filtered by the fakes prompt and `paths` doesn't intersect `files`),
+        # fall back to one big group so we never silently drop input.
+        if not groups and files:
             groups = [files]
 
         added = 0
