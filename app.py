@@ -1365,10 +1365,17 @@ class RoonTag:
         self._tracks_card = self._make_card(d, "Tracks")
         tracks_body = tk.Frame(self._tracks_card, bg=BG2)
         tracks_body.pack(fill="both", expand=True, padx=18, pady=(2, 16))
-        tk.Label(tracks_body, bg=BG2, fg=FG_MUTED,
-                 text="Double-click a cell to edit the number, title, or artist.",
+
+        hint_row = tk.Frame(tracks_body, bg=BG2)
+        hint_row.pack(fill="x", pady=(0, 8))
+        tk.Label(hint_row, bg=BG2, fg=FG_MUTED,
+                 text="Double-click a cell to edit. ⌘-click or Shift-click "
+                      "to multi-select.",
                  font=(FONT_BODY, 10),
-                 justify="left").pack(anchor="w", pady=(0, 8))
+                 justify="left").pack(side="left")
+        ttk.Button(hint_row, text="Auto-number",
+                   command=self._autonumber_tracks,
+                   style="Ghost.TButton").pack(side="right")
 
         tf2 = tk.Frame(tracks_body, bg=BG2)
         tf2.pack(fill="both", expand=True)
@@ -1378,7 +1385,7 @@ class RoonTag:
             columns=("#", "title", "artist", "dur"),
             show="headings",
             yscrollcommand=sb2.set,
-            selectmode="browse",
+            selectmode="extended",
             height=7,
         )
         sb2.configure(command=self._track_tree.yview)
@@ -1853,6 +1860,41 @@ class RoonTag:
                     pass
                 track.title  = vals[1]
                 track.artist = vals[2]
+
+    def _autonumber_tracks(self):
+        """Set each track's number to its position in the displayed list.
+
+        - Nothing (or one row) selected: renumber every track 1..N.
+        - Multiple rows selected: only renumber those, using their position
+          in the full list — so selecting rows 5–10 yields 5, 6, …, 10.
+        """
+        if self.current_idx is None or not self.albums:
+            return
+        alb = self.albums[self.current_idx]
+        if not alb.tracks:
+            return
+        rows = list(self._track_tree.get_children())
+        selected = set(self._track_tree.selection())
+        if len(selected) <= 1:
+            target_idxs = list(range(len(rows)))
+        else:
+            target_idxs = [i for i, r in enumerate(rows) if r in selected]
+        if not target_idxs:
+            return
+        for i in target_idxs:
+            row = rows[i]
+            new_num = i + 1
+            vals = list(self._track_tree.item(row, "values"))
+            vals[0] = new_num
+            self._track_tree.item(row, values=vals)
+            if i < len(alb.tracks):
+                alb.tracks[i].track_num = new_num
+        self._update_preview(alb)
+        n = len(target_idxs)
+        self._status(
+            f"Auto-numbered {n} track{'s' if n != 1 else ''} "
+            f"({target_idxs[0] + 1}–{target_idxs[-1] + 1})."
+        )
 
     # ── inline track editing ─────────────────────────────────────────────
 

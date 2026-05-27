@@ -2,6 +2,12 @@
 
 All notable changes to Fly Me To The Roon. Newest first.
 
+## 1.5.2 — 2026-05-24
+- Added: **Auto-number** button in the Tracks card. With nothing (or one row)
+  selected it numbers every track 1..N in order; with multiple rows selected
+  it numbers only those, preserving their position so selecting rows 5–10
+  yields 5, 6, …, 10. Tracks card is now multi-selectable (⌘-click / Shift-click).
+
 ## 1.5.1 — 2026-05-24
 - Fixed: dropping a folder whose tracks live in subfolders (e.g. `Album/CD1/`,
   `Album/CD2/`, `Album/CD3/`) now produces a single album with all its tracks
