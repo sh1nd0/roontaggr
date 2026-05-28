@@ -26,113 +26,30 @@ OLD_APPS=(
 NEW_APP="/Applications/$APP_NAME.app"
 ICNS_OUT="$SCRIPT_DIR/AppIcon.icns"
 
-# ── 1. Generate icon ─────────────────────────────────────────────────────────
-echo "==> Generating $APP_NAME icon…"
-"$PY" - <<'PYEOF'
+# ── 1. Generate icon from icon.png (source-of-truth artwork) ────────────────
+ICON_SRC="$SCRIPT_DIR/icon.png"
+if [ ! -f "$ICON_SRC" ]; then
+    echo "ERROR: $ICON_SRC not found. Place a square PNG (≥1024×1024) named"
+    echo "       icon.png in the project root."
+    exit 1
+fi
+echo "==> Generating $APP_NAME icon from $ICON_SRC…"
+SCRIPT_DIR_FOR_PY="$SCRIPT_DIR" "$PY" - <<'PYEOF'
+import os
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image
 
+SRC = Path(os.environ["SCRIPT_DIR_FOR_PY"]) / "icon.png"
 ICONSET = Path("/tmp/FlyMeToTheRoon.iconset")
 ICONSET.mkdir(exist_ok=True)
 
-# ── Palette ──────────────────────────────────────────────────────────────────
-# Roon-style violet diagonal gradient + white paper airplane carrying a music note.
-TOP_LEFT     = (0x86, 0x6E, 0xFF)   # bright violet
-BOTTOM_RIGHT = (0x47, 0x36, 0xC2)   # deep indigo
-WHITE        = (0xFF, 0xFF, 0xFF, 255)
-WHITE_DIM    = (0xE8, 0xE3, 0xFF, 255)   # subtle shadow on the lower wing
-NOTE_COLOR   = (0x2A, 0x1E, 0x8E, 255)   # deep indigo for the note inside the plane
-
-
-def _lerp(a, b, t):
-    return tuple(int(a[i] * (1 - t) + b[i] * t) for i in range(3))
-
-
-def make_icon(size: int) -> Image.Image:
-    # ── Diagonal gradient background ─────────────────────────────────────
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    px = img.load()
-    diag = (size - 1) * 2 or 1
-    for y in range(size):
-        for x in range(size):
-            t = (x + y) / diag
-            r, g, b = _lerp(TOP_LEFT, BOTTOM_RIGHT, t)
-            px[x, y] = (r, g, b, 255)
-
-    # Subtle radial highlight near the top-left
-    highlight = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    hd = ImageDraw.Draw(highlight)
-    rr = int(size * 0.55)
-    cx_h, cy_h = int(size * 0.30), int(size * 0.22)
-    for i in range(rr, 0, -1):
-        alpha = int(38 * (i / rr) ** 2)
-        hd.ellipse([cx_h - i, cy_h - i, cx_h + i, cy_h + i],
-                   fill=(255, 255, 255, alpha))
-    highlight = highlight.filter(ImageFilter.GaussianBlur(radius=size * 0.08))
-    img = Image.alpha_composite(img, highlight)
-
-    # ── Rounded-rectangle mask (macOS icon shape) ────────────────────────
-    mask = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        [0, 0, size - 1, size - 1],
-        radius=int(size * 0.225),
-        fill=255,
-    )
-    img.putalpha(mask)
-
-    draw = ImageDraw.Draw(img)
-
-    # ── Trail of dots behind the plane ───────────────────────────────────
-    trail_pts = [
-        (size * 0.18, size * 0.78, size * 0.022, 90),
-        (size * 0.27, size * 0.70, size * 0.030, 140),
-        (size * 0.36, size * 0.62, size * 0.038, 190),
-    ]
-    for tx, ty, tr, a in trail_pts:
-        draw.ellipse([tx - tr, ty - tr, tx + tr, ty + tr],
-                     fill=(255, 255, 255, a))
-
-    # ── Paper airplane ───────────────────────────────────────────────────
-    def P(x, y):
-        return (size * x, size * y)
-
-    tip       = P(0.83, 0.20)
-    back_top  = P(0.18, 0.74)
-    notch     = P(0.36, 0.60)
-    back_bot  = P(0.58, 0.85)
-
-    draw.polygon([tip, back_top, notch], fill=WHITE)        # upper wing
-    draw.polygon([tip, notch, back_bot], fill=WHITE_DIM)    # lower fold (shadow)
-
-    fold_w = max(2, int(size * 0.006))
-    draw.line([tip, notch], fill=(0xC9, 0xC0, 0xF5, 255), width=fold_w)
-
-    # ── Tiny musical note tucked into the plane ──────────────────────────
-    nc = P(0.58, 0.40)
-    nh_w = size * 0.080
-    nh_h = size * 0.060
-    draw.ellipse(
-        [nc[0] - nh_w / 2, nc[1] - nh_h / 2,
-         nc[0] + nh_w / 2, nc[1] + nh_h / 2],
-        fill=NOTE_COLOR,
-    )
-    stem_w = max(2, int(size * 0.012))
-    sx = int(nc[0] + nh_w / 2 - stem_w * 0.6)
-    sy_bot = int(nc[1] - nh_h * 0.10)
-    sy_top = int(sy_bot - size * 0.115)
-    draw.rectangle([sx, sy_top, sx + stem_w, sy_bot], fill=NOTE_COLOR)
-    fw = size * 0.055
-    fh = size * 0.065
-    flag = [
-        (sx + stem_w,             sy_top),
-        (sx + stem_w + fw,        sy_top + fh * 0.30),
-        (sx + stem_w + fw * 0.85, sy_top + fh * 0.62),
-        (sx + stem_w,             sy_top + fh * 0.74),
-    ]
-    draw.polygon(flag, fill=NOTE_COLOR)
-
-    return img
-
+base = Image.open(SRC).convert("RGBA")
+if base.width != base.height:
+    # Center-crop to square so non-square sources still produce clean icons.
+    side = min(base.size)
+    left = (base.width  - side) // 2
+    top  = (base.height - side) // 2
+    base = base.crop((left, top, left + side, top + side))
 
 SPECS = [
     ("icon_16x16.png",      16),
@@ -150,10 +67,10 @@ SPECS = [
 cache: dict[int, Image.Image] = {}
 for fname, sz in SPECS:
     if sz not in cache:
-        cache[sz] = make_icon(sz)
+        cache[sz] = base.resize((sz, sz), Image.LANCZOS)
     cache[sz].save(ICONSET / fname)
 
-print(f"  Saved {len(SPECS)} PNGs to {ICONSET}")
+print(f"  Resampled {len(SPECS)} PNGs from {SRC.name} into {ICONSET}")
 PYEOF
 
 # ── 2. Convert iconset → .icns ───────────────────────────────────────────────

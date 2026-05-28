@@ -2,6 +2,13 @@
 
 All notable changes to Fly Me To The Roon. Newest first.
 
+## 1.5.3 — 2026-05-27
+- Changed: app icon. Swapped the procedural paper-airplane mark for a
+  rendered icon (music document → folder, with energy lines suggesting
+  the move-into-Roon flow). `make_roontag_app.sh` now resamples
+  `icon.png` (the source-of-truth artwork in the project root) into the
+  10 macOS iconset sizes instead of drawing one in Pillow.
+
 ## 1.5.2 — 2026-05-24
 - Added: **Auto-number** button in the Tracks card. With nothing (or one row)
   selected it numbers every track 1..N in order; with multiple rows selected
