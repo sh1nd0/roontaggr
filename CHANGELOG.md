@@ -2,6 +2,20 @@
 
 All notable changes to Fly Me To The Roon. Newest first.
 
+## 1.5.4 — 2026-05-27
+- Fixed: **Save Changes** now actually writes the tags into the underlying
+  audio files instead of only updating the in-memory model. The file stays
+  in place (no rename, no move) — Process All still does the full
+  write + rename + move-to-Roon flow.
+- Added: mousewheel / two-finger trackpad scroll on the detail panel.
+  Previously you had to drag the scrollbar to reach Album Type, Tracklist,
+  or Tracks below Metadata.
+- Fixed: the Tracks and Tracklist cards were ~36px narrower than the
+  Metadata and Album Type cards. They now line up flush, and hiding them
+  no longer leaves an empty padding band.
+- Changed: default window opens at 1160×820 (was 1160×720) so more of the
+  detail panel is visible without scrolling on first launch.
+
 ## 1.5.3 — 2026-05-27
 - Changed: app icon. Swapped the procedural paper-airplane mark for a
   rendered icon (music document → folder, with energy lines suggesting

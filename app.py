@@ -725,6 +725,35 @@ def _tag_filename(track: Track, alb: Album) -> str:
         return f"{artist} - {album} - {track.track_num:02d} - {title}"
     return f"{artist} - {album} - {title}"
 
+def _write_tags_only(alb: Album) -> None:
+    """Write metadata into each track's file in place. No rename, no move.
+
+    This is what the Save Changes button uses. It calls the same per-format
+    writers as write_tags_and_move but stops after the tag write so files
+    stay at their current paths.
+    """
+    import sys
+    for track in alb.tracks:
+        path = track.path
+        ext = path.suffix.lower()
+        print(
+            f"[FlyMeToTheRoon] save_tags: title={track.title!r} src={path}",
+            file=sys.stderr, flush=True,
+        )
+        try:
+            if ext == ".mp3":
+                _write_mp3(track, alb)
+            elif ext == ".flac":
+                _write_flac(track, alb)
+            elif ext in (".aif", ".aiff"):
+                _write_aiff(track, alb)
+            elif ext == ".m4a":
+                _write_m4a(track, alb)
+            # WAV — mutagen WAV tag support is patchy; skip
+        except Exception as e:
+            raise RuntimeError(f"Tag write failed for {path.name}: {e}") from e
+
+
 def write_tags_and_move(alb: Album, move: bool = True) -> None:
     """Write ID3/Vorbis/MP4 tags, rename, and optionally move files to ROON_DIR."""
     import sys
@@ -883,8 +912,8 @@ class RoonTag:
         self.root = root
         self.root.title(f"Fly Me To The Roon {VERSION}")
         self.root.configure(bg=BG)
-        self.root.minsize(960, 620)
-        self.root.geometry("1160x720")
+        self.root.minsize(960, 640)
+        self.root.geometry("1160x820")
 
         self.albums: list[Album] = []
         self.current_idx: Optional[int] = None
@@ -1174,6 +1203,7 @@ class RoonTag:
         canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
+        self._detail_canvas = canvas
 
         self._detail = tk.Frame(canvas, bg=BG)
         self._detail_window = canvas.create_window((0, 0), window=self._detail, anchor="nw")
@@ -1186,6 +1216,22 @@ class RoonTag:
         self._detail.bind("<Configure>", _on_frame_configure)
         canvas.bind("<Configure>", _on_canvas_configure)
 
+        # Two-finger trackpad / mousewheel scroll. Bind globally only while
+        # the cursor is over the detail panel so the queue listbox keeps its
+        # own scroll behavior.
+        def _on_wheel(e):
+            # macOS Tk delivers small deltas (±1 per wheel notch / per
+            # trackpad event); scroll one unit per delta.
+            canvas.yview_scroll(int(-e.delta), "units")
+        def _bind_wheel(_e):
+            self.root.bind_all("<MouseWheel>", _on_wheel)
+        def _unbind_wheel(_e):
+            self.root.unbind_all("<MouseWheel>")
+        canvas.bind("<Enter>", _bind_wheel)
+        canvas.bind("<Leave>", _unbind_wheel)
+        self._detail.bind("<Enter>", _bind_wheel)
+        self._detail.bind("<Leave>", _unbind_wheel)
+
         self._build_detail_panel()
 
     def _make_card(self, parent, title: str, pady_top: int = 0):
@@ -1195,8 +1241,9 @@ class RoonTag:
         own padding). The card packs itself into `parent` so the caller can
         chain cards top-to-bottom simply by calling this in order.
         """
+        wrap_pack = dict(fill="x", padx=22, pady=(pady_top, 16))
         wrap = tk.Frame(parent, bg=BG)
-        wrap.pack(fill="x", padx=22, pady=(pady_top, 16))
+        wrap.pack(**wrap_pack)
 
         card = tk.Frame(wrap, bg=BG2, highlightbackground=BORDER,
                         highlightthickness=1)
@@ -1207,6 +1254,10 @@ class RoonTag:
         tk.Label(hdr, text=title.upper(), bg=BG2, fg=FG_DIM,
                  font=(FONT_BODY, 10, "bold")).pack(anchor="w")
 
+        # Attach the wrap (and its pack args) so callers can show/hide the
+        # whole card — surrounding padding included — without leaving a gap.
+        card._wrap = wrap
+        card._wrap_pack = wrap_pack
         return card
 
     def _build_detail_panel(self):
@@ -1764,9 +1815,9 @@ class RoonTag:
 
         # Show tracks card only for multi-track items
         if len(alb.tracks) > 1:
-            self._tracks_card.pack(fill="x", padx=18, pady=(0, 14))
+            self._tracks_card._wrap.pack(**self._tracks_card._wrap_pack)
         else:
-            self._tracks_card.pack_forget()
+            self._tracks_card._wrap.pack_forget()
 
         # Tracklist
         self._on_type_change()
@@ -1799,9 +1850,9 @@ class RoonTag:
                    or self._is_live_var.get()
                    or self._is_comp_var.get())
         if show_tl:
-            self._tl_card.pack(fill="x", padx=18, pady=(0, 14))
+            self._tl_card._wrap.pack(**self._tl_card._wrap_pack)
         else:
-            self._tl_card.pack_forget()
+            self._tl_card._wrap.pack_forget()
 
     def _set_detail_enabled(self, on: bool):
         state = "normal" if on else "disabled"
@@ -1819,13 +1870,32 @@ class RoonTag:
     # ── saving fields ────────────────────────────────────────────────────
 
     def _apply_fields(self):
+        """Save Changes — write the current metadata to the underlying audio
+        files in place (no rename, no move). Process All still does the full
+        write + rename + move-to-Roon-folder flow.
+        """
         if self.current_idx is None:
             return
         self._save_current_fields()
         alb = self.albums[self.current_idx]
+        try:
+            _write_tags_only(alb)
+        except Exception as e:
+            import sys, traceback
+            traceback.print_exc(file=sys.stderr)
+            messagebox.showerror(
+                "Save failed",
+                f"Couldn't write tags to one of the files:\n\n{e}"
+            )
+            self._status("Save failed.")
+            return
         alb.status = "ready"
         self._refresh_queue()
-        self._status(f"Saved — ready to process.")
+        n = len(alb.tracks)
+        self._status(
+            f"Saved tags to {n} file{'s' if n != 1 else ''} — "
+            "ready to Process All."
+        )
 
     def _save_current_fields(self):
         if self.current_idx is None:
